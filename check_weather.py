@@ -6,11 +6,16 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
 def get_weather():
-    api_key = os.environ['OPENWEATHER_API_KEY']
-    lat = os.environ['LATITUDE']
-    lon = os.environ['LONGITUDE']
-    
-    url = f"https://api.openweathermap.org/data/3.0/onecall"
+    # Read environment variables with helpful errors
+    api_key = os.getenv('OPENWEATHER_API_KEY')
+    lat = os.getenv('LATITUDE')
+    lon = os.getenv('LONGITUDE')
+
+    missing = [name for name, val in (('OPENWEATHER_API_KEY', api_key), ('LATITUDE', lat), ('LONGITUDE', lon)) if not val]
+    if missing:
+        raise EnvironmentError(f"Missing required environment variables: {', '.join(missing)}")
+
+    url = "https://api.openweathermap.org/data/3.0/onecall"
     params = {
         "lat": lat,
         "lon": lon,
@@ -18,12 +23,18 @@ def get_weather():
         "exclude": "minutely,hourly,alerts",
         "units": "metric"
     }
-    
-    response = requests.get(url, params=params)
+
+    response = requests.get(url, params=params, timeout=15)
     if response.status_code == 200:
         return response.json()
     else:
-        raise Exception(f"Error fetching weather data: {response.status_code}")
+        # Try to include response body (JSON or text) to make debugging easier in CI logs
+        body = None
+        try:
+            body = response.json()
+        except Exception:
+            body = response.text
+        raise Exception(f"Error fetching weather data: {response.status_code} - {body}")
 
 def should_bring_umbrella(weather_data):
     # Check current weather and next few hours
